@@ -1,14 +1,15 @@
-
 import { useState, useEffect } from 'react';
 import { VoiceTaskEntry } from '@/components/VoiceTaskEntry';
 import { ProgressDashboard } from '@/components/ProgressDashboard';
 import { TaskHistory } from '@/components/TaskHistory';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CheckCircle2, Target, TrendingUp } from 'lucide-react';
+import { useMobile } from '@/hooks/useMobile';
 
 const Index = () => {
   const [completedToday, setCompletedToday] = useState(false);
   const [streak, setStreak] = useState(3); // Mock data for demo
+  const { isMobile, isIOS } = useMobile();
 
   useEffect(() => {
     // Check if user has already completed today's prioritization
@@ -18,9 +19,9 @@ const Index = () => {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+    <div className={`min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 ${isMobile ? 'pb-safe' : ''}`}>
       {/* Header */}
-      <div className="bg-white/80 backdrop-blur-sm border-b border-white/20 sticky top-0 z-10">
+      <div className={`bg-white/80 backdrop-blur-sm border-b border-white/20 sticky top-0 z-10 ${isIOS ? 'pt-safe' : ''}`}>
         <div className="max-w-md mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -43,7 +44,7 @@ const Index = () => {
       </div>
 
       {/* Main Content */}
-      <div className="max-w-md mx-auto px-4 py-6">
+      <div className={`max-w-md mx-auto px-4 py-6 ${isMobile ? 'px-safe' : ''}`}>
         <Tabs defaultValue="today" className="w-full">
           <TabsList className="grid w-full grid-cols-3 mb-6">
             <TabsTrigger value="today" className="flex items-center gap-2">

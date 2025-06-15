@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { useConversation } from '@11labs/react';
 import { Button } from '@/components/ui/button';
@@ -6,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Mic, MicOff, Phone, PhoneOff, Settings } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useMobile } from '@/hooks/useMobile';
 
 interface Task {
   id: string;
@@ -23,12 +23,13 @@ export const VoiceAgent = ({ onTasksCollected }: VoiceAgentProps) => {
   const [collectedTasks, setCollectedTasks] = useState<Task[]>([]);
   const [reflection, setReflection] = useState('');
   const { toast } = useToast();
+  const { isMobile } = useMobile();
 
   const conversation = useConversation({
     onConnect: () => {
       toast({
-        title: "Voice agent connected! 🎙️",
-        description: "Start speaking to add your daily priorities",
+        title: isMobile ? "Voice agent connected! 🎙️" : "Voice agent connected! 🎙️",
+        description: isMobile ? "Tap and speak to add priorities" : "Start speaking to add your daily priorities",
       });
     },
     onDisconnect: () => {
@@ -95,6 +96,20 @@ export const VoiceAgent = ({ onTasksCollected }: VoiceAgentProps) => {
       return;
     }
 
+    // Request microphone permission for mobile
+    if (isMobile) {
+      try {
+        await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch (error) {
+        toast({
+          title: "Microphone access required",
+          description: "Please enable microphone access to use voice features",
+          variant: "destructive"
+        });
+        return;
+      }
+    }
+
     try {
       await conversation.startSession({ agentId: agentId.trim() });
     } catch (error) {
@@ -153,7 +168,7 @@ export const VoiceAgent = ({ onTasksCollected }: VoiceAgentProps) => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Mic className="w-5 h-5" />
-            Voice Assistant
+            Voice Assistant {isMobile && '📱'}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -161,7 +176,7 @@ export const VoiceAgent = ({ onTasksCollected }: VoiceAgentProps) => {
             {conversation.status === 'disconnected' ? (
               <Button onClick={startVoiceSession} className="flex items-center gap-2">
                 <Phone className="w-4 h-4" />
-                Start Voice Session
+                {isMobile ? 'Start Voice Chat' : 'Start Voice Session'}
               </Button>
             ) : (
               <Button onClick={endVoiceSession} variant="destructive" className="flex items-center gap-2">
@@ -196,6 +211,8 @@ export const VoiceAgent = ({ onTasksCollected }: VoiceAgentProps) => {
                 • "Add professional task: Finish the project proposal"<br/>
                 • "My reflection is: I want to focus on health this week"<br/>
                 • "Finalize my tasks"
+                {isMobile && <br/>}
+                {isMobile && <span className="text-xs">• Tap the microphone button to speak clearly</span>}
               </p>
             </div>
           )}
