@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from 'react';
-import { DailyTaskEntry } from '@/components/DailyTaskEntry';
+import { VoiceTaskEntry } from '@/components/VoiceTaskEntry';
 import { ProgressDashboard } from '@/components/ProgressDashboard';
 import { TaskHistory } from '@/components/TaskHistory';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -62,17 +62,7 @@ const Index = () => {
 
           <TabsContent value="today" className="space-y-6">
             {!completedToday ? (
-              <>
-                <div className="text-center mb-8">
-                  <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                    What are your top priorities today?
-                  </h2>
-                  <p className="text-gray-600">
-                    Choose 3-5 tasks that align with your personal and professional goals
-                  </p>
-                </div>
-                <DailyTaskEntry onComplete={() => setCompletedToday(true)} />
-              </>
+              <VoiceTaskEntry onComplete={() => setCompletedToday(true)} />
             ) : (
               <div className="text-center py-12">
                 <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
