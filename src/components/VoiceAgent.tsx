@@ -1,8 +1,9 @@
-import { useState } from 'react';
+
+import { useState, useEffect } from 'react';
 import { useConversation } from '@11labs/react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Mic, Phone, PhoneOff } from 'lucide-react';
+import { Mic, PhoneOff, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useMobile } from '@/hooks/useMobile';
 
@@ -22,14 +23,16 @@ const DEFAULT_AGENT_ID = 'agent_01jxtpkc2rfyea485w67v3dhrc';
 export const VoiceAgent = ({ onTasksCollected }: VoiceAgentProps) => {
   const [collectedTasks, setCollectedTasks] = useState<Task[]>([]);
   const [reflection, setReflection] = useState('');
+  const [isInitializing, setIsInitializing] = useState(true);
   const { toast } = useToast();
   const { isMobile } = useMobile();
 
   const conversation = useConversation({
     onConnect: () => {
+      setIsInitializing(false);
       toast({
-        title: isMobile ? "Voice agent connected! 🎙️" : "Voice agent connected! 🎙️",
-        description: isMobile ? "Tap and speak to add priorities" : "Start speaking to add your daily priorities",
+        title: isMobile ? "Voice agent ready! 🎙️" : "Voice agent ready! 🎙️",
+        description: isMobile ? "Start speaking to add priorities" : "Start speaking to add your daily priorities",
       });
     },
     onDisconnect: () => {
@@ -40,6 +43,7 @@ export const VoiceAgent = ({ onTasksCollected }: VoiceAgentProps) => {
     },
     onError: (error) => {
       console.error('Conversation error:', error);
+      setIsInitializing(false);
       toast({
         title: "Voice agent error",
         description: "Unable to connect to voice assistant. Please try again.",
@@ -86,32 +90,44 @@ export const VoiceAgent = ({ onTasksCollected }: VoiceAgentProps) => {
     }
   });
 
-  const startVoiceSession = async () => {
-    // Request microphone permission for mobile
-    if (isMobile) {
+  // Auto-start voice session on component mount
+  useEffect(() => {
+    const startVoiceSession = async () => {
       try {
+        // Request microphone permission
         await navigator.mediaDevices.getUserMedia({ audio: true });
+        
+        // Start the conversation session
+        await conversation.startSession({ agentId: DEFAULT_AGENT_ID });
       } catch (error) {
-        toast({
-          title: "Microphone access required",
-          description: "Please enable microphone access to use voice features",
-          variant: "destructive"
-        });
-        return;
+        console.error('Failed to start voice session:', error);
+        setIsInitializing(false);
+        
+        if (error instanceof Error && error.name === 'NotAllowedError') {
+          toast({
+            title: "Microphone access required",
+            description: "Please enable microphone access to use voice features",
+            variant: "destructive"
+          });
+        } else {
+          toast({
+            title: "Failed to start voice session",
+            description: "Unable to connect to voice assistant. Please refresh and try again.",
+            variant: "destructive"
+          });
+        }
       }
-    }
+    };
 
-    try {
-      await conversation.startSession({ agentId: DEFAULT_AGENT_ID });
-    } catch (error) {
-      console.error('Failed to start conversation:', error);
-      toast({
-        title: "Failed to start session",
-        description: "Unable to connect to voice assistant. Please try again later.",
-        variant: "destructive"
-      });
-    }
-  };
+    startVoiceSession();
+
+    // Cleanup function to end session when component unmounts
+    return () => {
+      if (conversation.status === 'connected') {
+        conversation.endSession();
+      }
+    };
+  }, []);
 
   const endVoiceSession = async () => {
     await conversation.endSession();
@@ -128,42 +144,46 @@ export const VoiceAgent = ({ onTasksCollected }: VoiceAgentProps) => {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex gap-2">
-            {conversation.status === 'disconnected' ? (
-              <Button onClick={startVoiceSession} className="flex items-center gap-2">
-                <Phone className="w-4 h-4" />
-                {isMobile ? 'Start Voice Chat' : 'Start Voice Session'}
-              </Button>
-            ) : (
-              <Button onClick={endVoiceSession} variant="destructive" className="flex items-center gap-2">
-                <PhoneOff className="w-4 h-4" />
-                End Session
-              </Button>
-            )}
-          </div>
-          
-          <div className="flex items-center gap-2 text-sm">
-            <div className={`w-2 h-2 rounded-full ${
-              conversation.status === 'connected' ? 'bg-green-500 animate-pulse' : 'bg-gray-300'
-            }`}></div>
-            <span className="capitalize">{conversation.status}</span>
-            {conversation.isSpeaking && (
-              <span className="text-blue-600 ml-2">🗣️ Speaking...</span>
-            )}
-          </div>
-
-          {conversation.status === 'connected' && (
-            <div className="bg-blue-50 rounded-lg p-3">
-              <p className="text-sm text-blue-800">
-                💡 <strong>Say things like:</strong><br/>
-                • "Add a personal task: Go for a morning run"<br/>
-                • "Add professional task: Finish the project proposal"<br/>
-                • "My reflection is: I want to focus on health this week"<br/>
-                • "Finalize my tasks"
-                {isMobile && <br/>}
-                {isMobile && <span className="text-xs">• Tap the microphone button to speak clearly</span>}
-              </p>
+          {isInitializing ? (
+            <div className="flex items-center gap-2 text-blue-600">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>Connecting to voice assistant...</span>
             </div>
+          ) : (
+            <>
+              {conversation.status === 'connected' && (
+                <div className="flex gap-2">
+                  <Button onClick={endVoiceSession} variant="destructive" className="flex items-center gap-2">
+                    <PhoneOff className="w-4 h-4" />
+                    End Session
+                  </Button>
+                </div>
+              )}
+              
+              <div className="flex items-center gap-2 text-sm">
+                <div className={`w-2 h-2 rounded-full ${
+                  conversation.status === 'connected' ? 'bg-green-500 animate-pulse' : 'bg-gray-300'
+                }`}></div>
+                <span className="capitalize">{conversation.status}</span>
+                {conversation.isSpeaking && (
+                  <span className="text-blue-600 ml-2">🗣️ Speaking...</span>
+                )}
+              </div>
+
+              {conversation.status === 'connected' && (
+                <div className="bg-blue-50 rounded-lg p-3">
+                  <p className="text-sm text-blue-800">
+                    💡 <strong>Say things like:</strong><br/>
+                    • "Add a personal task: Go for a morning run"<br/>
+                    • "Add professional task: Finish the project proposal"<br/>
+                    • "My reflection is: I want to focus on health this week"<br/>
+                    • "Finalize my tasks"
+                    {isMobile && <br/>}
+                    {isMobile && <span className="text-xs">• Speak clearly into your device's microphone</span>}
+                  </p>
+                </div>
+              )}
+            </>
           )}
         </CardContent>
       </Card>
