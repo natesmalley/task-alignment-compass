@@ -1,9 +1,9 @@
+
 import { useState } from 'react';
 import { useConversation } from '@11labs/react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Mic, MicOff, Phone, PhoneOff, Settings } from 'lucide-react';
+import { Mic, Phone, PhoneOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useMobile } from '@/hooks/useMobile';
 
@@ -17,9 +17,10 @@ interface VoiceAgentProps {
   onTasksCollected: (tasks: Task[], reflection: string) => void;
 }
 
+// Default agent ID - replace with your actual ElevenLabs agent ID when ready
+const DEFAULT_AGENT_ID = 'your-elevenlabs-agent-id-here';
+
 export const VoiceAgent = ({ onTasksCollected }: VoiceAgentProps) => {
-  const [agentId, setAgentId] = useState('');
-  const [isConfigured, setIsConfigured] = useState(false);
   const [collectedTasks, setCollectedTasks] = useState<Task[]>([]);
   const [reflection, setReflection] = useState('');
   const { toast } = useToast();
@@ -42,7 +43,7 @@ export const VoiceAgent = ({ onTasksCollected }: VoiceAgentProps) => {
       console.error('Conversation error:', error);
       toast({
         title: "Voice agent error",
-        description: "Please check your agent configuration",
+        description: "Unable to connect to voice assistant. Please try again.",
         variant: "destructive"
       });
     },
@@ -87,15 +88,6 @@ export const VoiceAgent = ({ onTasksCollected }: VoiceAgentProps) => {
   });
 
   const startVoiceSession = async () => {
-    if (!agentId.trim()) {
-      toast({
-        title: "Agent ID required",
-        description: "Please enter your ElevenLabs agent ID",
-        variant: "destructive"
-      });
-      return;
-    }
-
     // Request microphone permission for mobile
     if (isMobile) {
       try {
@@ -111,12 +103,12 @@ export const VoiceAgent = ({ onTasksCollected }: VoiceAgentProps) => {
     }
 
     try {
-      await conversation.startSession({ agentId: agentId.trim() });
+      await conversation.startSession({ agentId: DEFAULT_AGENT_ID });
     } catch (error) {
       console.error('Failed to start conversation:', error);
       toast({
         title: "Failed to start session",
-        description: "Please check your agent ID and try again",
+        description: "Unable to connect to voice assistant. Please try again later.",
         variant: "destructive"
       });
     }
@@ -125,41 +117,6 @@ export const VoiceAgent = ({ onTasksCollected }: VoiceAgentProps) => {
   const endVoiceSession = async () => {
     await conversation.endSession();
   };
-
-  if (!isConfigured) {
-    return (
-      <Card className="border-0 shadow-lg bg-white/70 backdrop-blur-sm">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Settings className="w-5 h-5" />
-            Configure Voice Agent
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <label className="text-sm font-medium text-gray-700 mb-2 block">
-              ElevenLabs Agent ID
-            </label>
-            <Input
-              placeholder="Enter your ElevenLabs agent ID"
-              value={agentId}
-              onChange={(e) => setAgentId(e.target.value)}
-            />
-            <p className="text-xs text-gray-600 mt-1">
-              Create an agent at ElevenLabs and paste the agent ID here
-            </p>
-          </div>
-          <Button 
-            onClick={() => setIsConfigured(true)}
-            disabled={!agentId.trim()}
-            className="w-full"
-          >
-            Configure Agent
-          </Button>
-        </CardContent>
-      </Card>
-    );
-  }
 
   return (
     <div className="space-y-6">
@@ -184,13 +141,6 @@ export const VoiceAgent = ({ onTasksCollected }: VoiceAgentProps) => {
                 End Session
               </Button>
             )}
-            <Button 
-              variant="outline" 
-              size="icon"
-              onClick={() => setIsConfigured(false)}
-            >
-              <Settings className="w-4 h-4" />
-            </Button>
           </div>
           
           <div className="flex items-center gap-2 text-sm">
@@ -213,6 +163,14 @@ export const VoiceAgent = ({ onTasksCollected }: VoiceAgentProps) => {
                 • "Finalize my tasks"
                 {isMobile && <br/>}
                 {isMobile && <span className="text-xs">• Tap the microphone button to speak clearly</span>}
+              </p>
+            </div>
+          )}
+
+          {DEFAULT_AGENT_ID === 'your-elevenlabs-agent-id-here' && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+              <p className="text-sm text-amber-800">
+                ⚠️ <strong>Setup Required:</strong> Replace the DEFAULT_AGENT_ID in VoiceAgent.tsx with your actual ElevenLabs agent ID to enable voice functionality.
               </p>
             </div>
           )}
