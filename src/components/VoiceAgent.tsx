@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { useConversation } from '@11labs/react';
 import { Button } from '@/components/ui/button';
@@ -17,8 +16,8 @@ interface VoiceAgentProps {
   onTasksCollected: (tasks: Task[], reflection: string) => void;
 }
 
-// Default agent ID - replace with your actual ElevenLabs agent ID when ready
-const DEFAULT_AGENT_ID = 'your-elevenlabs-agent-id-here';
+// Production agent ID for the Daily Focus app
+const DEFAULT_AGENT_ID = 'agent_01jxtpkc2rfyea485w67v3dhrc';
 
 export const VoiceAgent = ({ onTasksCollected }: VoiceAgentProps) => {
   const [collectedTasks, setCollectedTasks] = useState<Task[]>([]);
@@ -163,14 +162,6 @@ export const VoiceAgent = ({ onTasksCollected }: VoiceAgentProps) => {
                 • "Finalize my tasks"
                 {isMobile && <br/>}
                 {isMobile && <span className="text-xs">• Tap the microphone button to speak clearly</span>}
-              </p>
-            </div>
-          )}
-
-          {DEFAULT_AGENT_ID === 'your-elevenlabs-agent-id-here' && (
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-              <p className="text-sm text-amber-800">
-                ⚠️ <strong>Setup Required:</strong> Replace the DEFAULT_AGENT_ID in VoiceAgent.tsx with your actual ElevenLabs agent ID to enable voice functionality.
               </p>
             </div>
           )}
