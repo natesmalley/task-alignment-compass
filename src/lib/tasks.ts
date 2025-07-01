@@ -29,6 +29,34 @@ export interface DailyEntry {
   timestamp: string;
 }
 
+/**
+ * -------- Eisenhower-style priority helpers ------------------------
+ *
+ * We use a *very* lightweight heuristic:
+ *   • Importance: professional = 2, personal = 1
+ *   • Urgency:    newer tasks are more urgent
+ * Score = importance + (1 / ageInHours)
+ */
+function _importanceWeight(category: TaskCategory): number {
+  return category === 'professional' ? 2 : 1;
+}
+
+function _ageInHours(createdAt: string): number {
+  const ms = Date.now() - new Date(createdAt).getTime();
+  return Math.max(ms / (1000 * 60 * 60), 1); // clamp ≥ 1 hour
+}
+
+/** Return a descending‑sorted copy of tasks (highest score first). */
+export function sortTasksByEisenhower(tasks: Task[]): Task[] {
+  return [...tasks].sort((a, b) => {
+    const scoreA =
+      _importanceWeight(a.category) + 1 / _ageInHours(a.createdAt);
+    const scoreB =
+      _importanceWeight(b.category) + 1 / _ageInHours(b.createdAt);
+    return scoreB - scoreA;
+  });
+}
+
 /* ------------------------------------------------------------------ *
  *  Local‑storage helpers (encapsulated so we can swap storage later) *
  * ------------------------------------------------------------------ */
@@ -153,10 +181,13 @@ export function addTask(
  * a daily reflection.  Returns the saved DailyEntry for convenience.
  */
 export function finalizeEntry(reflection?: string): DailyEntry {
-  const today = new Date().toDateString();
+  // Re‑order today’s tasks by Eisenhower score and refresh priorities
+  const sorted = sortTasksByEisenhower(getTodayTasks());
+  sorted.forEach((t, idx) => (t.priority = idx + 1));
+
   const entry: DailyEntry = {
-    date: today,
-    tasks: getTodayTasks(),
+    date: new Date().toDateString(),
+    tasks: sorted,
     reflection,
     timestamp: new Date().toISOString(),
   };
