@@ -1,17 +1,14 @@
-
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useConversation } from '@11labs/react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Mic, PhoneOff, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useMobile } from '@/hooks/useMobile';
+import { v4 as uuidv4 } from 'uuid';
+import { Task, TaskCategory, addTask as persistTask, finalizeEntry, getTasksForToday } from '@/lib/tasks';
+import { JARVIS_PROMPT } from '@/lib/agentPrompt';
 
-interface Task {
-  id: string;
-  text: string;
-  category: 'personal' | 'professional';
-}
 
 interface VoiceAgentProps {
   onTasksCollected: (tasks: Task[], reflection: string) => void;
@@ -51,24 +48,50 @@ export const VoiceAgent = ({ onTasksCollected }: VoiceAgentProps) => {
       });
     },
     clientTools: {
-      addTask: (parameters: { text: string; category: 'personal' | 'professional' }) => {
+      addTask: (parameters: { text: string; category: TaskCategory }) => {
+        // 🛡️ Validate that `category` is a simple string, otherwise bail out
+        const isValidCategory = (c: any): c is TaskCategory =>
+          c === 'personal' || c === 'professional';
+
+        if (!isValidCategory(parameters.category)) {
+          console.warn('Invalid category received from voice agent:', parameters.category);
+          toast({
+            title: 'Unknown category',
+            description: 'Please say “personal” or “professional” after the task.',
+            variant: 'destructive'
+          });
+          return 'Sorry, I didn’t catch whether that was personal or professional.';
+        }
+
+        // Build a fresh task object
         const newTask: Task = {
-          id: Date.now().toString(),
-          text: parameters.text,
-          category: parameters.category
+          id: uuidv4(),
+          text: parameters.text.trim(),
+          category: parameters.category as TaskCategory,
+          completed: false,
         };
-        
-        setCollectedTasks(prev => {
-          const updated = [...prev, newTask];
-          if (updated.length <= 5) {
-            toast({
-              title: "Task added! ✅",
-              description: `Added: ${parameters.text}`,
-            });
-          }
-          return updated;
-        });
-        
+
+        // 1️⃣ Persist to local‑storage
+        persistTask(newTask);
+
+        // Retrieve the latest tasks list after persisting
+        const updatedTasks = getTasksForToday();
+
+        // Debug: verify task shapes
+        console.log('Updated tasks', updatedTasks);
+        updatedTasks.forEach(t => console.log('text type', typeof t.text, t));
+
+        // 2️⃣ Read back the up‑to‑date list once, then update state & UI
+        setCollectedTasks(updatedTasks);
+
+        // 3️⃣ User feedback based on the *new* array length
+        if (updatedTasks.length <= 5) {
+          toast({
+            title: 'Task added! ✅',
+            description: `${parameters.text}`,
+          });
+        }
+
         return `Task "${parameters.text}" has been added to your ${parameters.category} priorities.`;
       },
       setReflection: (parameters: { reflection: string }) => {
@@ -80,15 +103,28 @@ export const VoiceAgent = ({ onTasksCollected }: VoiceAgentProps) => {
         return "Your reflection has been recorded.";
       },
       finalizeTasks: () => {
-        if (collectedTasks.length >= 3) {
-          onTasksCollected(collectedTasks, reflection);
+        const persistedTasks = getTasksForToday();
+        if (persistedTasks.length >= 3) {
+          finalizeEntry(reflection);
+          onTasksCollected(persistedTasks, reflection);
           return "Your daily priorities have been finalized!";
         } else {
-          return `You currently have ${collectedTasks.length} tasks. Please add at least 3 priorities before finalizing.`;
+          return `You currently have ${persistedTasks.length} tasks. Please add at least 3 priorities before finalizing.`;
         }
       }
     }
   });
+
+  // Safely stringify status so we never pass an object directly to the DOM
+  const statusLabel = useMemo(() => {
+    const raw = conversation?.status;
+    if (typeof raw === 'string') return raw;
+    try {
+      return JSON.stringify(raw);
+    } catch {
+      return 'processing';
+    }
+  }, [conversation.status]);
 
   // Auto-start voice session on component mount
   useEffect(() => {
@@ -98,7 +134,10 @@ export const VoiceAgent = ({ onTasksCollected }: VoiceAgentProps) => {
         await navigator.mediaDevices.getUserMedia({ audio: true });
         
         // Start the conversation session
-        await conversation.startSession({ agentId: DEFAULT_AGENT_ID });
+        await conversation.startSession({
+          agentId: DEFAULT_AGENT_ID,
+          prompt: JARVIS_PROMPT
+        });
       } catch (error) {
         console.error('Failed to start voice session:', error);
         setIsInitializing(false);
@@ -164,9 +203,9 @@ export const VoiceAgent = ({ onTasksCollected }: VoiceAgentProps) => {
                 <div className={`w-2 h-2 rounded-full ${
                   conversation.status === 'connected' ? 'bg-green-500 animate-pulse' : 'bg-gray-300'
                 }`}></div>
-                <span className="capitalize">{conversation.status}</span>
+                <span className="capitalize">{statusLabel}</span>
                 {conversation.isSpeaking && (
-                  <span className="text-blue-600 ml-2">🗣️ Speaking...</span>
+                 <span className="text-blue-600 ml-2">🗣️ Speaking...</span>
                 )}
               </div>
 
@@ -201,9 +240,15 @@ export const VoiceAgent = ({ onTasksCollected }: VoiceAgentProps) => {
                   <span className="w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs">
                     {index + 1}
                   </span>
-                  <span className="flex-1">{task.text}</span>
+                  {/*
+                    `task.text` was sometimes persisted as an object in older sessions.
+                    Convert it to a string defensively to prevent React runtime errors.
+                  */}
+                  <span className="flex-1">
+                    {typeof task.text === 'string' ? task.text : (task.text as any)?.text ?? ''}
+                  </span>
                   <span className="text-xs px-2 py-1 bg-gray-200 rounded">
-                    {task.category}
+                    {String(task.category)}
                   </span>
                 </div>
               ))}

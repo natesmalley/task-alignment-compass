@@ -1,5 +1,4 @@
-
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -7,13 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Plus, X, Briefcase, User, Sparkles } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-
-interface Task {
-  id: string;
-  text: string;
-  category: 'personal' | 'professional';
-  priority: number;
-}
+import { Task } from '@/models/task';
+import { safeLoadDailyEntries, saveDailyEntry, updateLastCompleted } from '@/utils/storage';
 
 interface DailyTaskEntryProps {
   onComplete: () => void;
@@ -25,6 +19,18 @@ export const DailyTaskEntry = ({ onComplete }: DailyTaskEntryProps) => {
   const [selectedCategory, setSelectedCategory] = useState<'personal' | 'professional'>('personal');
   const [reflection, setReflection] = useState('');
   const { toast } = useToast();
+
+  // Identify the current day (used as a unique key in storage)
+  const todayKey = new Date().toDateString();
+
+  /** Hydrate tasks/reflection if the voice flow already saved today’s entry */
+  useEffect(() => {
+    const existing = safeLoadDailyEntries().find(e => e.date === todayKey);
+    if (existing) {
+      setTasks(existing.tasks);
+      setReflection(existing.reflection ?? '');
+    }
+  }, [todayKey]);
 
   const addTask = () => {
     if (!newTask.trim()) return;
@@ -42,7 +48,9 @@ export const DailyTaskEntry = ({ onComplete }: DailyTaskEntryProps) => {
       id: Date.now().toString(),
       text: newTask.trim(),
       category: selectedCategory,
-      priority: tasks.length + 1
+      priority: tasks.length + 1,
+      createdAt: new Date().toISOString(),
+      completed: false,
     };
 
     setTasks([...tasks, task]);
@@ -68,19 +76,15 @@ export const DailyTaskEntry = ({ onComplete }: DailyTaskEntryProps) => {
       return;
     }
 
-    // Save to localStorage (in a real app, this would be a proper backend)
     const today = new Date().toDateString();
     const dailyEntry = {
       date: today,
       tasks,
       reflection,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
-
-    const existingEntries = JSON.parse(localStorage.getItem('dailyEntries') || '[]');
-    existingEntries.push(dailyEntry);
-    localStorage.setItem('dailyEntries', JSON.stringify(existingEntries));
-    localStorage.setItem('lastCompleted', today);
+    saveDailyEntry(dailyEntry);
+    updateLastCompleted(today);
 
     toast({
       title: "Priorities set! 🎯",

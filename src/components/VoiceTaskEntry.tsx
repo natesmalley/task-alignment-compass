@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { VoiceAgent } from './VoiceAgent';
 import { DailyTaskEntry } from './DailyTaskEntry';
@@ -6,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Mic, Keyboard, Sparkles } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { saveDailyEntry, updateLastCompleted } from '@/utils/storage';
 
 interface Task {
   id: string;
@@ -22,42 +22,64 @@ export const VoiceTaskEntry = ({ onComplete }: VoiceTaskEntryProps) => {
   const [mode, setMode] = useState<'voice' | 'manual'>('voice');
   const { toast } = useToast();
 
-  const handleVoiceTasksCollected = (voiceTasks: Array<{id: string; text: string; category: 'personal' | 'professional'}>, reflection: string) => {
-    // Convert voice tasks to the expected format
-    const tasks: Task[] = voiceTasks.map((task, index) => ({
-      ...task,
-      priority: index + 1
-    }));
+  const handleVoiceTasksCollected = (
+    voiceTasks: Array<{ id: string; text: string; category: 'personal' | 'professional' }>,
+    reflection: string
+  ) => {
+    try {
+      const today = new Date().toDateString();
 
-    if (tasks.length < 3) {
+      // Convert voice tasks to the expected format
+      const tasks: Task[] = voiceTasks.map((task, index) => ({
+        ...task,
+        priority: index + 1
+      }));
+
+      // --- DEBUG --------------------------------------------------------------
+      console.group('[VoiceTaskEntry] handleVoiceTasksCollected');
+      console.log('raw voiceTasks', voiceTasks);
+      console.log('mapped tasks', tasks);
+      // -----------------------------------------------------------------------
+
+      if (!Array.isArray(tasks) || tasks.length === 0) {
+        throw new Error('No tasks to persist');
+      }
+
+      if (tasks.length < 3) {
+        toast({
+          title: "Need more tasks",
+          description: "Please add at least 3 priorities before finalizing",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      const dailyEntry = {
+        date: today,
+        tasks,
+        reflection,
+        timestamp: new Date().toISOString()
+      };
+
+      saveDailyEntry(dailyEntry);
+      updateLastCompleted(today);
+
       toast({
-        title: "Need more tasks",
-        description: "Please add at least 3 priorities before finalizing",
-        variant: "destructive"
+        title: 'Voice priorities set! 🎯',
+        description: 'Your daily focus has been captured through voice!'
       });
-      return;
+
+      console.groupEnd();
+      onComplete();
+    } catch (err) {
+      console.groupEnd();
+      console.error('[VoiceTaskEntry] Persist failed', err);
+      toast({
+        title: 'Could not save your tasks',
+        description: (err as Error).message ?? 'Unknown error',
+        variant: 'destructive'
+      });
     }
-
-    // Save to localStorage (same as DailyTaskEntry)
-    const today = new Date().toDateString();
-    const dailyEntry = {
-      date: today,
-      tasks,
-      reflection,
-      timestamp: new Date().toISOString()
-    };
-
-    const existingEntries = JSON.parse(localStorage.getItem('dailyEntries') || '[]');
-    existingEntries.push(dailyEntry);
-    localStorage.setItem('dailyEntries', JSON.stringify(existingEntries));
-    localStorage.setItem('lastCompleted', today);
-
-    toast({
-      title: "Voice priorities set! 🎯",
-      description: "Your daily focus has been captured through voice!",
-    });
-
-    onComplete();
   };
 
   return (
